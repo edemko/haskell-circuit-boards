@@ -1,9 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Main where
 
-import Language.Gerber.Data
-import Language.Gerber.Syntax
 import Language.Gerber.Antiparse
+import Language.Gerber.Data
 import Language.Gerber.Stackup
+import Language.Gerber.Syntax
 import Language.Gerber.Writer
 
 
@@ -137,8 +141,8 @@ commonLayout = do
 board = do
     edge profileBrush
         [ (18*gridUnit, 0)
-        , (18*gridUnit, 8*gridUnit)
-        , (0, 8*gridUnit)
+        , (18*gridUnit, 9*gridUnit)
+        , (0, 9*gridUnit)
         , (0, 0)
         ]
     diodeMatrix

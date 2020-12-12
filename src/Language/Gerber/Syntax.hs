@@ -1,7 +1,13 @@
-module Language.Gerber.Syntax where
+{-# LANGUAGE DuplicateRecordFields #-}
+
+module Language.Gerber.Syntax
+    ( Command(..)
+    , ApertureTemplate(..)
+    , MacroContent
+    , MacroStatement(..)
+    ) where
 
 import Language.Gerber.Data
-import Data.String(IsString(..))
 
 
 data Command
@@ -93,4 +99,4 @@ data MacroStatement
         , rot :: GbrDecimal
         }
 
-data Arith = TODO
+data Arith -- TODO

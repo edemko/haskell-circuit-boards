@@ -1,14 +1,26 @@
-module Language.Gerber.State where
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeApplications #-}
 
-import qualified Language.Gerber.Data as Low
+module Language.Gerber.State
+    ( Brush(..)
+    , GbrState(..)
+    , startGbrState
+    , insertBrush
+    , lookupDCode
+    , lookupBrush
+    , diffApertureAttrs
+    ) where
+
 import Language.Gerber.Data
-import Language.Gerber.Syntax
+
 import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.String (fromString)
+import Language.Gerber.Syntax (ApertureTemplate, Command)
+
+import qualified Data.Map as Map
 
 
-{-  The idea behind a bruch is to hold all of the information about an aperture:
+{-  The idea behind a brush is to hold all of the information about an aperture:
         - the template
         - the attributes
         - any in-file documentation
@@ -64,7 +76,7 @@ startGbrState = GbrState
     , gbrScaling = 0.0
 
     , gbrApertureDict = []
-    , _freeDCodes = (fromString . show) <$> [10..]
+    , _freeDCodes = (fromString . show @Integer) <$> [10..]
     , gbrCurrentAttrs = Map.empty
     }
 
@@ -98,12 +110,12 @@ diffApertureAttrs kvs' GbrState{gbrCurrentAttrs} =
             case lookup k kvs of
                 Just v | v == v' -> []
                 _ -> [(k, v')]
-        rem = do
+        del = do
             (k, _) <- kvs
             case lookup k kvs' of
                 Nothing -> [k]
                 _ -> []
-    in (add, rem)
+    in (add, del)
     where
     adapt = map (\(k, (_, v)) -> (k, v)) . filter isApAttr
     isApAttr (_, (ApertureAttr, _)) = True

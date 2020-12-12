@@ -1,19 +1,44 @@
-module Language.Gerber.Data where
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-import Data.Int
+module Language.Gerber.Data
+    (
+    -- * Primitive Types
+      GbrInteger
+    , GbrDecimal
+    , GbrCoordinate
+    , GbrName
+    , GbrString
+    , GbrCoordinates
+    , GbrComponent(..)
+    -- * Enumerated Types
+    , Unit(..)
+    , Polarity(..)
+    , Mirroring(..)
+    , InterpolationMode(..)
+    , QuadrantMode(..)
+    , AttributeType(..)
+    -- * Identifiers
+    , DCode
+    , dcodeToIntegral
+    , MacroName
+    , VarName
+    ) where
+
+import Data.Int (Int32)
 import Data.String (IsString(..))
+import Language.Gerber.Antiparse.Class (Antiparse(..))
 
 
 ------------ Primitive Types (from §3.6) ------------
 
 newtype GbrInteger = GbrInt Int32
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Enum, Num, Real, Integral)
 
 newtype GbrDecimal = GbrDecimal Double
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Num, Fractional,Real)
 
 newtype GbrCoordinate = GbrCoord Integer -- FIXME this is just a hack to avoid having to pass around data about how many decimal places should be written
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Num, Enum, Real, Integral)
 
 -- TODO hexadecimal
 
@@ -63,10 +88,13 @@ data AttributeType
     deriving (Read, Show, Eq)
 
 
------------- Identifiers (varois sections) ------------
+------------ Identifiers (various sections) ------------
 
 newtype DCode = DCode Int32 -- FIXME must between 10 and max_int32 (though 0-9 are /reserved/, so maybe those are restricted only for defining apertures?)
     deriving (Eq)
+
+dcodeToIntegral :: Num a => DCode -> a
+dcodeToIntegral (DCode n) = fromIntegral n
 
 newtype MacroName = MacroName GbrName
     deriving (Eq)
@@ -77,39 +105,24 @@ newtype VarName = VarName Int32 -- FIXME must be greater than zero
 
 ------------ instances for the above ------------
 
-instance Num GbrInteger where
-    fromInteger = GbrInt . fromInteger
-    (GbrInt a) + (GbrInt b) = GbrInt (a + b)
-    (GbrInt a) * (GbrInt b) = GbrInt (a * b)
-    abs (GbrInt a) = GbrInt (abs a)
-    signum (GbrInt a) = GbrInt (signum a)
-    negate (GbrInt a) = GbrInt (negate a)
-
-instance Num GbrDecimal where
-    fromInteger = GbrDecimal . fromInteger
-    (GbrDecimal a) + (GbrDecimal b) = GbrDecimal (a + b)
-    (GbrDecimal a) * (GbrDecimal b) = GbrDecimal (a * b)
-    abs (GbrDecimal a) = GbrDecimal (abs a)
-    signum (GbrDecimal a) = GbrDecimal (signum a)
-    negate (GbrDecimal a) = GbrDecimal (negate a)
-instance Fractional GbrDecimal where
-    fromRational = GbrDecimal . fromRational
-    (GbrDecimal a) / (GbrDecimal b) = GbrDecimal (a / b)
-
-instance Num GbrCoordinate where
-    fromInteger = GbrCoord . fromInteger
-    (GbrCoord a) + (GbrCoord b) = GbrCoord (a + b)
-    (GbrCoord a) * (GbrCoord b) = GbrCoord (a * b)
-    abs (GbrCoord a) = GbrCoord (abs a)
-    signum (GbrCoord a) = GbrCoord (signum a)
-    negate (GbrCoord a) = GbrCoord (negate a)
-
 instance IsString GbrString where
     fromString = GbrStr
+instance Show GbrString where
+    show (GbrStr s) = show s
+instance Antiparse GbrString where
+    antiparse (GbrStr s) = s
 
+instance Show GbrName where
+    show (GbrName s) = show s
+instance Antiparse GbrName where
+    antiparse (GbrName s) = s
 
 instance IsString DCode where
     fromString = DCode . fromInteger . read
 
 instance IsString MacroName where
     fromString = MacroName . GbrName
+instance Show MacroName where
+    show (MacroName s) = show s
+instance Antiparse MacroName where
+    antiparse (MacroName s) = antiparse s

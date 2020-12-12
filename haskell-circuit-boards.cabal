@@ -1,0 +1,49 @@
+cabal-version: 3.0
+name: circuit-boards
+version: 0.1.0.0
+
+synopsis: draw Gerber files for PCB manufacturing
+-- description:
+-- bug-reports:
+-- The license under which the package is released.
+license: BSD-3-Clause
+author: Okuno Zankoku
+maintainer: zankoku.okuno@gmail.com
+copyright:  2020 Okuno Zankoku
+-- category:
+build-type: Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+library
+    exposed-modules:
+        Language.Gerber.Antiparse
+        Language.Gerber.Data
+        Language.Gerber.Stackup
+        Language.Gerber.State
+        Language.Gerber.Syntax
+        Language.Gerber.Writer
+    other-modules:
+        Language.Gerber.Antiparse.Class
+    build-depends:
+        , base >=4.12
+        , containers >=0.6
+        , mtl >=2.2
+    hs-source-dirs: src
+    default-language: Haskell2010
+    ghc-options: -O2 -Wall
+
+executable example-01
+    main-is: DiodeMatrix.hs
+
+    -- Modules included in this executable, other than Main.
+    -- other-modules:
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:
+        , base >=4.12
+        , circuit-boards
+    hs-source-dirs: app
+    default-language: Haskell2010

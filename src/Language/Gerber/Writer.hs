@@ -1,4 +1,11 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 module Language.Gerber.Writer
     ( GbrWriterMonad(..)
     , GbrWriter
@@ -11,28 +18,21 @@ module Language.Gerber.Writer
     ) where
 
 import Language.Gerber.Data
-import Language.Gerber.Syntax
-import Language.Gerber.State
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.Functor.Identity
-import Control.Monad.State
-import Control.Monad.Writer
 
+import Control.Monad (forM_)
+import Control.Monad.State (StateT, MonadState,get,put,modify,gets,state,evalStateT)
+import Control.Monad.Trans (MonadTrans(lift))
+import Control.Monad.Writer (WriterT,tell,runWriterT)
+import Data.Functor.Identity (Identity,runIdentity)
+import Language.Gerber.State (Brush(..),lookupBrush,insertBrush,diffApertureAttrs)
+import Language.Gerber.State (GbrState(..),startGbrState)
+import Language.Gerber.Syntax (Command(..))
+
+import qualified Data.Map as Map
 
 
 newtype GbrWriterT m a = GbrWriterT { unGbrWriterT :: StateT GbrState (WriterT [Command] m) a }
-
-instance (Functor m) => Functor (GbrWriterT m) where
-    fmap f (GbrWriterT x) = GbrWriterT (f <$> x)
-instance (Monad m) => Applicative (GbrWriterT m) where
-    pure = GbrWriterT . pure
-    (GbrWriterT a) <*> (GbrWriterT b) = GbrWriterT (a <*> b)
-instance (Monad m) => Monad (GbrWriterT m) where
-    return = GbrWriterT . pure
-    x >>= k = GbrWriterT $ do
-        x <- unGbrWriterT x
-        unGbrWriterT $ k x
+    deriving(Functor, Applicative, Monad)
 
 instance MonadTrans GbrWriterT where
     lift = GbrWriterT . lift . lift
@@ -88,7 +88,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ uncurry FormatSpecification fs
-            modify $ \s@GbrState{..} -> s{ gbrCoordFormat = Just fs }
+            modify $ \s -> s{ gbrCoordFormat = Just fs }
 
     setUnits unit = GbrWriterT $ do
         gets gbrUnit >>= \case
@@ -97,7 +97,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ Mode unit
-            modify $ \s@GbrState{..} -> s{ gbrUnit = Just unit }
+            modify $ \s -> s{ gbrUnit = Just unit }
 
     setBrush brush = GbrWriterT $ do
         state (lookupBrush brush) >>= \case
@@ -107,7 +107,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
                 dcode <- defAperture brush
                 setAperture dcode
         where
-        defAperture Brush{..} = do
+        defAperture Brush{attributes,docstring,template} = do
             dcode <- state $ insertBrush brush
             tell $ Comment <$> docstring
             (sets, dels) <- diffApertureAttrs attributes <$> get
@@ -122,7 +122,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
             where
             burnbaby = do
                 tell1 $ SetAperture dcode
-                modify $ \s@GbrState{..} -> s{ gbrCurrentAperture = Just dcode }
+                modify $ \s -> s{ gbrCurrentAperture = Just dcode }
 
     interpolate xy Nothing = GbrWriterT $ do
         gets gbrInterpolationMode >>= \case
@@ -152,7 +152,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ SetInterpolationMode mode
-            modify $ \s@GbrState{..} -> s{ gbrInterpolationMode = Just mode }
+            modify $ \s -> s{ gbrInterpolationMode = Just mode }
 
     setQuadrantMode mode = GbrWriterT $ do
         gets ((Just mode ==) . gbrQuadrantMode) >>= \case
@@ -161,7 +161,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ SetQuadrantMode mode
-            modify $ \s@GbrState{..} -> s{ gbrQuadrantMode = Just mode }
+            modify $ \s -> s{ gbrQuadrantMode = Just mode }
 
     setPolarity pol = GbrWriterT $ do
         gets ((pol ==) . gbrPolarity) >>= \case
@@ -170,7 +170,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ LoadPolarity pol
-            modify $ \s@GbrState{..} -> s{ gbrPolarity = pol }
+            modify $ \s -> s{ gbrPolarity = pol }
 
     setMirroring mir = GbrWriterT $ do
         gets ((mir ==) . gbrMirroring) >>= \case
@@ -179,7 +179,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ LoadMirroring mir
-            modify $ \s@GbrState{..} -> s{ gbrMirroring = mir }
+            modify $ \s -> s{ gbrMirroring = mir }
 
     setRotation rot = GbrWriterT $ do
         gets ((rot ==) . gbrRotation) >>= \case
@@ -188,7 +188,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ LoadRotation rot
-            modify $ \s@GbrState{..} -> s{ gbrRotation = rot }
+            modify $ \s -> s{ gbrRotation = rot }
 
     setScaling scale = GbrWriterT $ do
         gets ((scale ==) . gbrScaling) >>= \case
@@ -197,7 +197,7 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
         where
         burnbaby = do
             tell1 $ LoadScaling scale
-            modify $ \s@GbrState{..} -> s{ gbrScaling = scale }
+            modify $ \s -> s{ gbrScaling = scale }
 
     region body = GbrWriterT $ do
         tell1 StartRegion
@@ -209,20 +209,25 @@ instance Monad m => GbrWriterMonad (GbrWriterT m) where
     setFileAttribute name value = GbrWriterT $ do
         setAttribute FileAttr name value
 
+setAttribute :: Monad m =>
+       AttributeType
+    -> GbrString
+    -> [GbrString]
+    -> StateT GbrState (WriterT [Command] m) ()
 setAttribute ty name value = do
     gets (Map.lookup name . gbrCurrentAttrs) >>= \case
         Just (FileAttr, _) -> error "cannot redefine a file attribute"
         Just (ty', _)
             | ty /= ty' -> error "cannot change the type of an attribute"
-            | ty == ty' -> burnbaby
+            | otherwise -> burnbaby
         Nothing -> burnbaby
-            
     where
     burnbaby = do
         tell1 $ SetAttribute ty name value
-        modify $ \s@GbrState{..} -> s
+        modify $ \s@GbrState{gbrCurrentAttrs} -> s
             { gbrCurrentAttrs = Map.insert name (ty, value) gbrCurrentAttrs }
 
+delAttribute :: Monad m => Maybe GbrString -> StateT GbrState (WriterT [Command] m) ()
 delAttribute Nothing = do
     gets (null . gbrCurrentAttrs) >>= \case
         True -> pure ()
@@ -230,8 +235,7 @@ delAttribute Nothing = do
     where
     burnbaby = do
         tell1 $ DeleteAttribute Nothing
-        modify $ \s@GbrState{..} -> s
-            { gbrCurrentAttrs = Map.empty }-- FIXME really? the standard says "the whole dictionary is cleared", but does that include file attributes?
+        modify $ \s -> s{ gbrCurrentAttrs = Map.empty } -- FIXME really? the standard says "the whole dictionary is cleared", but does that include file attributes?
 delAttribute (Just name) = do
     gets (Map.lookup name . gbrCurrentAttrs) >>= \case
         Nothing -> pure ()
@@ -239,7 +243,7 @@ delAttribute (Just name) = do
     where
     burnbaby = do
         tell1 $ DeleteAttribute (Just name)
-        modify $ \s@GbrState{..} -> s
+        modify $ \s@GbrState{gbrCurrentAttrs} -> s
             { gbrCurrentAttrs = Map.delete name gbrCurrentAttrs }-- FIXME the standard makes no note that file attrs can't be deleted…
 
 
@@ -254,7 +258,7 @@ floatsToCoord (x, y) = GbrWriterT $ do
         Nothing -> error "undefined coordinate format"
         Just (_, decimalDigits) -> do
             -- FIXME check if the input floats are too large for the format
-            let xform = fromIntegral . round . (*10^decimalDigits)
+            let xform = fromIntegral @Integer . round . (*10^decimalDigits)
             pure (xform x, xform y)
 
 -- FIXME do nothing if the new coordinates are the same as the last coordinates?
@@ -264,7 +268,7 @@ _pointy f xy = GbrWriterT $ do
     (x0, y0) <- gets gbrCurrentPoint
     let coords = (if Just x == x0 then [] else [X x]) ++ (if Just y == y0 then [] else [Y y])
     tell1 $ f coords
-    modify $ \s@GbrState{..} -> s{ gbrCurrentPoint = (Just x, Just y) }
+    modify $ \s -> s{ gbrCurrentPoint = (Just x, Just y) }
 
 
 

@@ -1,14 +1,21 @@
-module Language.Gerber.Antiparse where
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
 
-import Numeric
-import Data.Maybe (catMaybes)
-import Data.List (intercalate)
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+module Language.Gerber.Antiparse
+    ( Antiparse(..)
+    ) where
+
 import Language.Gerber.Data
 import Language.Gerber.Syntax
+import Prelude hiding (id)
 
-
-class Antiparse a where
-    antiparse :: a -> String --FIXME take account of character encoding (7-bit ascii codes 10,13,32-126)
+import Data.List (intercalate)
+import Language.Gerber.Antiparse.Class
+import Numeric (showFFloat)
 
 
 instance Antiparse [Command] where
@@ -42,19 +49,13 @@ instance Antiparse Command where
 
 
 instance Antiparse GbrInteger where
-    antiparse (GbrInt i) = show i
+    antiparse = show . toInteger
 
 instance Antiparse GbrDecimal where
-    antiparse (GbrDecimal x) = showFFloat Nothing x ""
+    antiparse = flip (showFFloat @Double Nothing) "" . realToFrac
 
 instance Antiparse GbrCoordinate where
-    antiparse (GbrCoord x) = show x
-
-instance Antiparse GbrName where
-    antiparse (GbrName s) = s
-
-instance Antiparse GbrString where
-    antiparse (GbrStr s) = s
+    antiparse = show . toInteger
 
 instance Antiparse Unit where
     antiparse Millimeters = "MM"
@@ -83,7 +84,7 @@ instance Antiparse GbrComponent where
 
 
 instance Antiparse DCode where
-    antiparse (DCode n) = "D" ++ show n
+    antiparse = ('D':) . show @Integer . dcodeToIntegral
 
 instance Antiparse ApertureTemplate where
     antiparse (Circle d hd) = concat ["C,", antiparse d, maybe "" _by hd]
@@ -95,10 +96,8 @@ instance Antiparse ApertureTemplate where
         hdStr = maybe "" _by hd
     antiparse (Macro name) = antiparse name
 
-instance Antiparse MacroName where
-    antiparse (MacroName n) = antiparse n
-
 instance Antiparse MacroStatement where
+    antiparse (VarDef _ _) = error "TODO"
     antiparse (Moire{..}) = intercalate ","
         [ "6"
         , antiparse cx, antiparse cy
@@ -119,4 +118,5 @@ _stdCmd :: [String] -> String
 _stdCmd = (++"*") . concat
 _extCmd :: [[String]] -> String
 _extCmd = ("%"++) . (++"%") . intercalate "\n" . (_stdCmd <$>)
+_by :: Antiparse a => a -> String
 _by = ("X"++) . antiparse

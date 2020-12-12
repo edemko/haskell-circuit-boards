@@ -1,13 +1,16 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- FIXME this is a lot of layers of abstraction in one file
 module Language.Gerber.Stackup where
 
 import Language.Gerber.Data
-import Language.Gerber.Syntax
-import Language.Gerber.State
-import Language.Gerber.Writer
-import Control.Monad.State
-import Data.Map (Map)
-import qualified Data.Map as Map
+
+import Control.Monad (forM_)
+import Control.Monad.State (State,gets,modify,execState)
+import Language.Gerber.Syntax (Command)
+import Language.Gerber.Writer (Brush,GbrWriter,GbrWriterMonad(..),execGbrWriter)
 
 
 -- TODO I'm not really sure what to do with these if I want to have standardized components
@@ -60,7 +63,7 @@ newtype PcbLayout a = PcbLayout { unlayout :: State LayoutState a }
 data LayoutState = St
     { _here :: (Float, Float) -- FIXME this is a higher layer of abstraction
 
-    -- FIXME these fields shuold be configurable layers
+    -- FIXME these fields should be configurable layers
     , _profile :: GbrWriter ()
     , _topSoldermask :: GbrWriter ()
     , _topCopper :: GbrWriter ()
@@ -118,34 +121,34 @@ abscoords (x, y) = PcbLayout $ do
 
 
 edge :: Brush -> [(Float, Float)] -> PcbLayout ()
-edge brush xys | length xys < 3 = error "too few points to define edge"
+edge brush xys0 | length xys0 < 3 = error "too few points to define edge"
          | otherwise = do
-    ~(xy:xys) <- abscoords `mapM` xys
+    ~(xy:xys) <- abscoords `mapM` xys0
     PcbLayout $ modify $ \s@St{..} -> s
         { _profile = (_profile >>) $ do
             setBrush brush
             setInterpolationMode Linear
             region $ do
                 move xy
-                forM_ (xys `snoc` xy) $ \xy -> interpolate xy Nothing
+                forM_ (xys `snoc` xy) $ flip interpolate Nothing
         }
 
 trace :: Brush -> BoardSide -> [(Float, Float)] -> PcbLayout ()
-trace _ _ xys | length xys < 2 = error "too few points to define trace"
-trace brush w xys = do
-    ~(xy0:xys) <- abscoords `mapM` xys
+trace _ _ xysRel | length xysRel < 2 = error "too few points to define trace"
+trace brush w xysRel = do
+    ~(xy:xys) <- abscoords `mapM` xysRel
     let cmds = do
             setInterpolationMode Linear
             setBrush brush
-            move xy0
-            forM_ xys $ \xy -> interpolate xy Nothing
+            move xy
+            forM_ xys $ flip interpolate Nothing
     PcbLayout $ modify $ \s@St{..} -> case w of
         Top -> s { _topCopper = _topCopper >> cmds }
         Bot -> s { _botCopper = _botCopper >> cmds }
 
 via :: (Brush, Brush) -> (Float, Float) -> PcbLayout ()
-via (pad, drill) xy = do
-    xy <- abscoords xy
+via (pad, drill) xyRel = do
+    xy <- abscoords xyRel
     PcbLayout $ modify $ \s@St{..} -> s
         { _topCopper = do
             _topCopper
@@ -162,8 +165,8 @@ via (pad, drill) xy = do
         }
 
 thPad :: (Brush, Brush, Brush) -> (Float, Float) -> PcbLayout ()
-thPad (mask, pad, drill) xy = do
-    xy <- abscoords xy
+thPad (mask, pad, drill) xyRel = do
+    xy <- abscoords xyRel
     PcbLayout $ modify $ \s@St{..} -> s
         { _topSoldermask = _topSoldermask >> setBrush mask  >> flash xy
         , _topCopper     = _topCopper     >> setBrush pad   >> flash xy
@@ -174,8 +177,8 @@ thPad (mask, pad, drill) xy = do
 
 -- FIXME make orientable and top/bottom selectable
 smdPad :: (Brush, Brush) -> (Float, Float) -> PcbLayout ()
-smdPad (pad, mask) xy = do
-    xy <- abscoords xy
+smdPad (pad, mask) xyRel = do
+    xy <- abscoords xyRel
     PcbLayout $ modify $ \s@St{..} -> s
         { _topCopper = do
             _topCopper
@@ -197,4 +200,5 @@ smdPad (pad, mask) xy = do
 
 
 
+snoc :: [a] -> a -> [a]
 xs `snoc` x = xs ++ [x]

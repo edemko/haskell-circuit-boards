@@ -2,3 +2,4 @@
 gerber.cabal
 out/
 out.zip
+dist-newstyle/
