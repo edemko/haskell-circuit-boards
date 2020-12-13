@@ -2,4 +2,7 @@
 set -e
 
 mkdir -p out
-cabal build && cabal exec example-01 && zip out.zip out/*
+cabal build
+rm -f out/* out.zip
+cabal exec example-01
+zip out.zip out/*

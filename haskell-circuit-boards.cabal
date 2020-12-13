@@ -30,6 +30,8 @@ library
         , base >=4.12
         , containers >=0.6
         , mtl >=2.2
+        , record-dot-preprocessor
+        , record-hasfield
     hs-source-dirs: src
     default-language: Haskell2010
     ghc-options: -O2 -Wall

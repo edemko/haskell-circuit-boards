@@ -92,23 +92,23 @@ diodeConnect (fromIntegral -> x, twoFuncs ((+1) . fromIntegral, isEven) -> (y, e
         xOff = if e then 0.3 else 0.7
     if e
     then 
-        trace signal Top [ (x*gridUnit, y*gridUnit-halfDiodeLength)
+        trace signal 0 [ (x*gridUnit, y*gridUnit-halfDiodeLength)
                          , ((x+xOff)*gridUnit, y*gridUnit-halfDiodeLength) ]
     else
-        trace signal Top [ (x*gridUnit, y*gridUnit)
+        trace signal 0 [ (x*gridUnit, y*gridUnit)
                          , ((x+xOff)*gridUnit-halfDiodeLength, y*gridUnit)
                          , ((x+xOff)*gridUnit, y*gridUnit-halfDiodeLength) ]
     diodePads ((x+xOff)*gridUnit, y*gridUnit-halfDiodeLength)
-    trace signal Top [ ((x+xOff)*gridUnit, y*gridUnit+halfDiodeLength)
+    trace signal 0 [ ((x+xOff)*gridUnit, y*gridUnit+halfDiodeLength)
               , ((x+xOff)*gridUnit, y*gridUnit) ]
     via viaStd ((x+xOff)*gridUnit, y*gridUnit)
 
 
 diodeMatrix = do
     thPad thStd `mapM_` [(x*gridUnit, 1*gridUnit) | x <- [1..16]]
-    trace signal Top `mapM_` [[(x*gridUnit, 1*gridUnit), (x*gridUnit, 8*gridUnit)] | x <- [1..16]]
+    trace signal 0 `mapM_` [[(x*gridUnit, 1*gridUnit), (x*gridUnit, 8*gridUnit)] | x <- [1..16]]
     thPad thStd `mapM_` [(17*gridUnit, y*gridUnit) | y <- [2..8]]
-    trace signal Bot `mapM_` [[(1*gridUnit, y*gridUnit), (17*gridUnit, y*gridUnit)] | y <- [2..8]]
+    trace signal 1 `mapM_` [[(1*gridUnit, y*gridUnit), (17*gridUnit, y*gridUnit)] | y <- [2..8]]
     diodeConnect `mapM_` connections
     where
     connections = concat
@@ -135,7 +135,8 @@ commonLayout = do
     specifyFormat (2, 6)
     setUnits Millimeters
     setFileAttribute ".Part" ["Single"]
-    setFileAttribute ".SameCoordinates" []
+    setFileAttribute ".SameCoordinates" [] -- FIXME add a generated uuid identifier as an argument
+    -- TODO add a creation date
 
 
 board = do
@@ -149,17 +150,7 @@ board = do
 
 main :: IO ()
 main = do
-    let Stackup{..} = runPcbLayout commonLayout board
-    -- writeFile "out/top-silkscreen.gbr" (antiparse $ )
-    writeFile "out/top-soldermask.gbr" (antiparse $ topSoldermask)
-    writeFile "out/top-copper.gbr" (antiparse $ topCopper)
-    writeFile "out/bot-copper.gbr" (antiparse $ botCopper)
-    writeFile "out/bot-soldermask.gbr" (antiparse $ botSoldermask)
-    -- writeFile "out/bot-silkscreen.gbr" (antiparse $ )
-    writeFile "out/drill-plated.gbr" (antiparse $ platedDrill)
-    -- writeFile "out/drill-nonplated.gbr" (antiparse $ )
-    writeFile "out/profile.gbr" (antiparse $ profile)
-
+    writeToDir "out" $ runPcbLayout commonLayout board
 
 twoFuncs :: (a -> b, a -> c) -> a -> (b, c)
 twoFuncs (f, g) a = (f a, g a)
